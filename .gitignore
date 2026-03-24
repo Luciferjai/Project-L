@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.env
+.idea/
+player_data/
+*.parquet
+*.nakama-0
+player_data/main.py
