@@ -1,0 +1,1132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LILA BLACK — Player Journey Viewer</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&family=Share+Tech+Mono&display=swap');
+
+        :root {
+            --bg-deep:    #080c14;
+            --bg-panel:   #0e1520;
+            --bg-card:    #141e2e;
+            --border:     #1e2d42;
+            --border-hi:  #2a4060;
+            --red:    #ff2d55;
+            --orange: #ff6b00;
+            --yellow: #ffd600;
+            --green:  #00e676;
+            --blue:   #00b0ff;
+            --purple: #d500f9;
+            --pink:   #ff4081;
+            --text:   #e0eaff;
+            --dim:    #5a7a9a;
+            --muted:  #2a3d52;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: var(--bg-deep);
+            color: var(--text);
+            font-family: 'Rajdhani', sans-serif;
+            display: flex;
+            flex-direction: column;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* ── TOP BAR ── */
+        #topbar {
+            background: linear-gradient(90deg, #0e1520, #0a1828);
+            border-bottom: 2px solid var(--border-hi);
+            padding: 6px 16px 6px 16px;
+            min-height: 52px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+            box-shadow: 0 2px 20px rgba(0,176,255,0.08);
+        }
+
+        #logo {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--red);
+            letter-spacing: 0.12em;
+            white-space: nowrap;
+            text-shadow: 0 0 20px rgba(255,45,85,0.5);
+            margin-right: 6px;
+        }
+        #logo span { color: var(--blue); text-shadow: 0 0 20px rgba(0,176,255,0.5); }
+        #logo em   { color: var(--muted); font-style: normal; font-weight: 300; margin: 0 4px; }
+
+        /* ── COMBINED SEARCHABLE DROPDOWN ── */
+        .srch-wrap {
+            display: flex;
+            flex-direction: column;
+            gap: 1px;
+            position: relative;
+        }
+
+        .srch-wrap label {
+            font-size: 9px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-family: 'Share Tech Mono', monospace;
+            padding-left: 2px;
+        }
+
+        .srch-input {
+            background: var(--bg-card);
+            color: var(--text);
+            border: 1px solid var(--border-hi);
+            padding: 4px 28px 4px 8px;
+            font-size: 11px;
+            font-family: 'Share Tech Mono', monospace;
+            outline: none;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+        }
+        .srch-input:focus   { border-color: var(--blue); background: rgba(0,176,255,0.05); }
+        .srch-input::placeholder { color: var(--muted); }
+
+        .srch-arrow {
+            position: absolute;
+            right: 7px;
+            bottom: 7px;
+            color: var(--dim);
+            font-size: 9px;
+            pointer-events: none;
+        }
+
+        .srch-dropdown {
+            position: absolute;
+            top: 100%;
+            left: 0;
+            right: 0;
+            background: var(--bg-card);
+            border: 1px solid var(--border-hi);
+            border-top: none;
+            border-radius: 0 0 4px 4px;
+            z-index: 9999;
+            max-height: 220px;
+            overflow-y: auto;
+            display: none;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+        }
+
+        .srch-dropdown.open { display: block; }
+
+        .srch-option {
+            padding: 5px 10px;
+            font-size: 11px;
+            font-family: 'Share Tech Mono', monospace;
+            color: var(--dim);
+            cursor: pointer;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .srch-option:hover,
+        .srch-option.selected { background: rgba(0,176,255,0.1); color: var(--blue); }
+        .srch-option:last-child { border-bottom: none; }
+        .srch-option.no-results { color: var(--muted); cursor: default; font-style: italic; }
+
+        #sw-map    .srch-input { width: 130px; }
+        #sw-date   .srch-input { width: 120px; }
+        #sw-match  .srch-input { width: 260px; }
+        #sw-player .srch-input { width: 185px; }
+
+        /* ── LOAD BUTTON ── */
+        #load-btn {
+            background: linear-gradient(135deg, var(--red), var(--orange));
+            color: white;
+            border: none;
+            padding: 7px 22px;
+            font-size: 13px;
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 700;
+            letter-spacing: 0.1em;
+            cursor: pointer;
+            border-radius: 4px;
+            white-space: nowrap;
+            transition: all 0.2s;
+            text-transform: uppercase;
+            box-shadow: 0 0 15px rgba(255,45,85,0.3);
+            align-self: flex-end;
+            margin-bottom: 0;
+        }
+        #load-btn:hover    { box-shadow: 0 0 28px rgba(255,45,85,0.6); transform: translateY(-1px); }
+        #load-btn:disabled { background: var(--muted); box-shadow: none; transform: none; cursor: not-allowed; }
+
+        /* ── TOOLBAR ── */
+        #toolbar {
+            background: var(--bg-panel);
+            border-bottom: 1px solid var(--border);
+            padding: 5px 16px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-shrink: 0;
+            flex-wrap: wrap;
+        }
+
+        .tlabel {
+            font-size: 9px;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.1em;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        .pill {
+            background: transparent;
+            color: var(--dim);
+            border: 1px solid var(--border-hi);
+            padding: 3px 13px;
+            font-size: 11px;
+            font-family: 'Rajdhani', sans-serif;
+            font-weight: 600;
+            cursor: pointer;
+            border-radius: 20px;
+            transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .pill:hover { border-color: var(--blue); color: var(--blue); }
+        .pill.on {
+            border-color: var(--blue); color: var(--blue);
+            background: rgba(0,176,255,0.12);
+            box-shadow: 0 0 10px rgba(0,176,255,0.2);
+        }
+
+        .tsep { width:1px; height:18px; background: var(--border); margin: 0 2px; }
+
+        /* ── LEGEND ── */
+        #legend { display:flex; align-items:center; gap:5px; flex-wrap:wrap; margin-left:auto; }
+
+        .leg {
+            display: flex; align-items: center; gap: 4px;
+            font-size: 11px; font-weight: 600; cursor: help;
+            padding: 2px 8px; border-radius: 4px;
+            border: 1px solid transparent; transition: all 0.15s;
+            white-space: nowrap;
+        }
+        .leg:hover { filter: brightness(1.3); transform: translateY(-1px); }
+        .leg-human   { color:#4a9eff; border-color:rgba(74,158,255,0.3);  background:rgba(74,158,255,0.08); }
+        .leg-bot     { color:#8899aa; border-color:rgba(136,153,170,0.3); background:rgba(136,153,170,0.06); }
+        .leg-pvpkill { color:#ff4444; border-color:rgba(255,68,68,0.3);   background:rgba(255,68,68,0.08); }
+        .leg-pvpdead { color:#ff8800; border-color:rgba(255,136,0,0.3);   background:rgba(255,136,0,0.08); }
+        .leg-botkill { color:#ffd600; border-color:rgba(255,214,0,0.3);   background:rgba(255,214,0,0.08); }
+        .leg-botdead { color:#cc00ff; border-color:rgba(204,0,255,0.3);   background:rgba(204,0,255,0.08); }
+        .leg-botbot  { color:#ff69b4; border-color:rgba(255,105,180,0.3); background:rgba(255,105,180,0.08); }
+        .leg-storm   { color:#00ccff; border-color:rgba(0,204,255,0.3);   background:rgba(0,204,255,0.08); }
+        .leg-loot    { color:#00e676; border-color:rgba(0,230,118,0.3);   background:rgba(0,230,118,0.08); }
+
+        /* ── MAP ── */
+        #map { flex:1; min-height:0; background:var(--bg-deep); position:relative; }
+
+        /* ── FLOATING PANELS — pointer-events fix ── */
+        /* Wrapper is transparent to clicks, children are not */
+        #float-left, #float-right {
+            position: absolute;
+            top: 12px;
+            z-index: 1000;
+            pointer-events: none; /* panel itself doesn't block map */
+        }
+        #float-left  { left: 12px; }
+        #float-right { right: 12px; }
+
+        #summary-panel, #player-indicator {
+            pointer-events: all; /* but the card itself IS clickable */
+        }
+
+        #summary-panel {
+            background: rgba(8,12,20,0.93);
+            border: 1px solid var(--border-hi);
+            border-top: 2px solid var(--blue);
+            border-radius: 6px;
+            padding: 12px 14px;
+            width: 205px;
+            display: none;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 30px rgba(0,0,0,0.7), 0 0 20px rgba(0,176,255,0.05);
+        }
+        #summary-panel.visible { display: block; }
+
+        .sp-title {
+            font-size: 10px; color: var(--blue);
+            text-transform: uppercase; letter-spacing: 0.12em;
+            font-weight: 700; margin-bottom: 8px;
+        }
+        .sp-badge {
+            display: inline-block; font-size: 10px;
+            padding: 2px 10px; border-radius: 20px;
+            border: 1px solid var(--blue); color: var(--blue);
+            background: rgba(0,176,255,0.08);
+            margin-bottom: 10px; font-weight: 600; letter-spacing: 0.04em;
+        }
+        .sp-row { display:flex; justify-content:space-between; margin-bottom:5px; font-size:12px; }
+        .sp-key { color: var(--dim); font-weight: 500; }
+        .sp-val { font-weight: 700; font-variant-numeric: tabular-nums; }
+        .sp-val.hi { color: var(--yellow); }
+        .sp-div { height:1px; background:var(--border); margin:8px 0; }
+
+        .sp-heat-label {
+            font-size: 9px; color: var(--muted);
+            text-transform: uppercase; letter-spacing: 0.1em;
+            margin-bottom: 6px; font-family: 'Share Tech Mono', monospace;
+        }
+        .sp-heat-btns { display:flex; flex-direction:column; gap:4px; }
+
+        .heat-btn {
+            background: transparent; color: var(--dim);
+            border: 1px solid var(--border-hi);
+            padding: 4px 10px; font-size: 11px;
+            font-family: 'Rajdhani', sans-serif; font-weight: 600;
+            cursor: pointer; border-radius: 4px;
+            text-align: left; transition: all 0.15s; width: 100%;
+        }
+        .heat-btn:hover { color: var(--text); border-color: var(--dim); }
+        .heat-btn.active-kills   { background:rgba(255,45,85,0.15);  border-color:var(--red);    color:#ff6677; box-shadow:0 0 10px rgba(255,45,85,0.2); }
+        .heat-btn.active-deaths  { background:rgba(213,0,249,0.15);  border-color:var(--purple); color:#e066ff; box-shadow:0 0 10px rgba(213,0,249,0.2); }
+        .heat-btn.active-traffic { background:rgba(0,176,255,0.15);  border-color:var(--blue);   color:#44ccff; box-shadow:0 0 10px rgba(0,176,255,0.2); }
+
+        /* ── PLAYER CARD ── */
+        #player-indicator {
+            background: rgba(8,12,20,0.93);
+            border: 1px solid var(--border-hi);
+            border-top: 2px solid var(--red);
+            border-radius: 6px;
+            padding: 12px 14px;
+            width: 200px;
+            display: none;
+            backdrop-filter: blur(8px);
+            box-shadow: 0 4px 30px rgba(0,0,0,0.7), 0 0 20px rgba(255,45,85,0.08);
+        }
+        #player-indicator.visible { display: block; }
+
+        .pi-title {
+            font-size: 10px; color: var(--red);
+            text-transform: uppercase; letter-spacing: 0.12em;
+            font-weight: 700; margin-bottom: 8px;
+        }
+        .pi-row { display:flex; justify-content:space-between; margin-bottom:5px; font-size:12px; }
+        .pi-key { color: var(--dim); font-weight: 500; }
+        .pi-val { font-weight: 700; }
+
+        #focus-btn {
+            width: 100%; margin-top: 10px;
+            background: linear-gradient(135deg, rgba(255,45,85,0.2), rgba(255,107,0,0.2));
+            color: var(--orange); border: 1px solid var(--orange);
+            padding: 5px; font-size: 11px;
+            font-family: 'Rajdhani', sans-serif; font-weight: 700;
+            cursor: pointer; border-radius: 4px;
+            letter-spacing: 0.06em; text-transform: uppercase; transition: all 0.15s;
+        }
+        #focus-btn:hover { background: rgba(255,107,0,0.3); box-shadow: 0 0 12px rgba(255,107,0,0.3); }
+
+        #clear-btn {
+            width: 100%; margin-top: 5px;
+            background: transparent; color: var(--muted);
+            border: 1px solid var(--border);
+            padding: 4px; font-size: 10px;
+            font-family: 'Share Tech Mono', monospace;
+            cursor: pointer; border-radius: 4px; transition: all 0.15s;
+        }
+        #clear-btn:hover { border-color: var(--dim); color: var(--dim); }
+
+        .pi-hint { font-size: 9px; color: var(--muted); margin-top:8px; font-family:'Share Tech Mono',monospace; line-height:1.5; }
+
+        /* ── TIMELINE ── */
+        #timeline {
+            background: var(--bg-panel);
+            border-top: 2px solid var(--border-hi);
+            padding: 6px 16px;
+            display: flex; align-items: center; gap: 10px;
+            flex-shrink: 0;
+        }
+
+        #play-btn {
+            background: var(--bg-card); color: var(--green);
+            border: 1px solid var(--green);
+            padding: 4px 14px; font-size: 12px;
+            font-family: 'Rajdhani', sans-serif; font-weight: 700;
+            cursor: pointer; border-radius: 4px; min-width: 80px;
+            transition: all 0.15s; letter-spacing: 0.05em;
+            box-shadow: 0 0 8px rgba(0,230,118,0.2);
+        }
+        #play-btn:hover { background: rgba(0,230,118,0.1); box-shadow: 0 0 16px rgba(0,230,118,0.4); }
+
+        #timeline-slider { flex:1; accent-color:var(--red); cursor:pointer; }
+
+        #time-display {
+            font-size: 13px; color: var(--red); font-weight: 700;
+            min-width: 56px; text-align: right;
+            font-family: 'Share Tech Mono', monospace;
+        }
+        #time-end {
+            font-size: 12px; color: var(--muted); min-width: 56px;
+            font-family: 'Share Tech Mono', monospace;
+        }
+        .tl-label { font-size:10px; color:var(--muted); font-family:'Share Tech Mono',monospace; }
+
+        #speed-select {
+            background: var(--bg-card); color: var(--yellow);
+            border: 1px solid var(--border-hi);
+            padding: 3px 8px; font-size: 12px;
+            font-family: 'Share Tech Mono', monospace; border-radius: 4px;
+        }
+
+        /* ── STATUS ── */
+        #status {
+            background: var(--bg-deep);
+            border-top: 1px solid var(--border);
+            padding: 3px 16px; font-size: 10px; color: var(--dim);
+            flex-shrink: 0; white-space: nowrap; overflow: hidden;
+            text-overflow: ellipsis;
+            font-family: 'Share Tech Mono', monospace;
+        }
+
+        /* ── LEAFLET POPUP ── */
+        .leaflet-popup-content-wrapper {
+            background: rgba(8,12,20,0.96) !important;
+            border: 1px solid var(--border-hi) !important;
+            border-radius: 6px !important;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.8) !important;
+            color: var(--text) !important;
+        }
+        .leaflet-popup-tip { background: rgba(8,12,20,0.96) !important; }
+        .leaflet-popup-close-button { color: var(--dim) !important; }
+
+        /* scrollbar */
+        .srch-dropdown::-webkit-scrollbar { width: 4px; }
+        .srch-dropdown::-webkit-scrollbar-track { background: var(--bg-card); }
+        .srch-dropdown::-webkit-scrollbar-thumb { background: var(--border-hi); border-radius: 2px; }
+    </style>
+</head>
+<body>
+
+<!-- TOP BAR -->
+<div id="topbar">
+    <div id="logo">LILA<span>BLACK</span><em>//</em></div>
+
+    <!-- MAP searchable dropdown -->
+    <div class="srch-wrap" id="sw-map">
+        <label>Map</label>
+        <input class="srch-input" id="si-map" placeholder="Select map…" autocomplete="off" readonly>
+        <span class="srch-arrow">▾</span>
+        <div class="srch-dropdown" id="sd-map"></div>
+    </div>
+
+    <!-- DATE searchable dropdown -->
+    <div class="srch-wrap" id="sw-date">
+        <label>Date</label>
+        <input class="srch-input" id="si-date" placeholder="Select date…" autocomplete="off" readonly>
+        <span class="srch-arrow">▾</span>
+        <div class="srch-dropdown" id="sd-date"></div>
+    </div>
+
+    <!-- MATCH searchable dropdown -->
+    <div class="srch-wrap" id="sw-match">
+        <label>Match ID</label>
+        <input class="srch-input" id="si-match" placeholder="Search or paste match ID…" autocomplete="off">
+        <span class="srch-arrow">▾</span>
+        <div class="srch-dropdown" id="sd-match"></div>
+    </div>
+
+    <!-- PLAYER searchable dropdown -->
+    <div class="srch-wrap" id="sw-player">
+        <label>Player / Bot</label>
+        <input class="srch-input" id="si-player" placeholder="All players" autocomplete="off">
+        <span class="srch-arrow">▾</span>
+        <div class="srch-dropdown" id="sd-player"></div>
+    </div>
+
+    <button id="load-btn">▶ LOAD</button>
+</div>
+
+<!-- TOOLBAR -->
+<div id="toolbar">
+    <span class="tlabel">View</span>
+    <button class="pill" id="toggle-lines">〰 Paths</button>
+    <div class="tsep"></div>
+    <div id="legend">
+        <span class="leg leg-human"   title="Human player movement">● Human</span>
+        <span class="leg leg-bot"     title="Bot movement">● Bot</span>
+        <span class="leg leg-pvpkill" title="Human killed another human">● PvP Kill</span>
+        <span class="leg leg-pvpdead" title="Human killed by another human">● PvP Death</span>
+        <span class="leg leg-botkill" title="Human killed a bot">● Bot Kill</span>
+        <span class="leg leg-botdead" title="Human killed by a bot">● Killed by Bot</span>
+        <span class="leg leg-botbot"  title="Bot killed by another bot">● Bot×Bot</span>
+        <span class="leg leg-storm"   title="Died to storm">● Storm</span>
+        <span class="leg leg-loot"    title="Item picked up">● Loot</span>
+    </div>
+</div>
+
+<!-- MAP -->
+<div id="map">
+    <!-- Left float: match summary + heatmap -->
+    <div id="float-left" ondblclick="event.stopPropagation()" ontouchstart="event.stopPropagation()">
+        <div id="summary-panel">
+            <div class="sp-title">⬡ Match Intel</div>
+            <div class="sp-badge" id="sp-map">—</div>
+            <div class="sp-row"><span class="sp-key">Players</span>      <span class="sp-val" id="sp-players">—</span></div>
+            <div class="sp-row"><span class="sp-key">Humans</span>       <span class="sp-val" id="sp-humans">—</span></div>
+            <div class="sp-row"><span class="sp-key">Bots</span>         <span class="sp-val" id="sp-bots">—</span></div>
+            <div class="sp-div"></div>
+            <div class="sp-row"><span class="sp-key">Duration</span>     <span class="sp-val" id="sp-duration">—</span></div>
+            <div class="sp-row"><span class="sp-key">Total events</span> <span class="sp-val" id="sp-events">—</span></div>
+            <div class="sp-div"></div>
+            <div class="sp-row"><span class="sp-key">PvP kills</span>    <span class="sp-val hi" id="sp-kills">—</span></div>
+            <div class="sp-row"><span class="sp-key">Bot kills</span>    <span class="sp-val hi" id="sp-botkills">—</span></div>
+            <div class="sp-row"><span class="sp-key">Storm deaths</span> <span class="sp-val hi" id="sp-storm">—</span></div>
+            <div class="sp-row"><span class="sp-key">Loot pickups</span> <span class="sp-val hi" id="sp-loot">—</span></div>
+            <div class="sp-div"></div>
+            <div class="sp-heat-label">Heatmap Overlay</div>
+            <div class="sp-heat-btns">
+                <button class="heat-btn" data-heat="kills">  🔴 Kill Zones</button>
+                <button class="heat-btn" data-heat="deaths"> 💜 Death Zones</button>
+                <button class="heat-btn" data-heat="traffic">🔵 Traffic</button>
+                <button class="heat-btn" data-heat="off">    ✕  Off</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Right float: player focus card -->
+    <div id="float-right" ondblclick="event.stopPropagation()" ontouchstart="event.stopPropagation()">
+        <div id="player-indicator">
+            <div class="pi-title">⬡ Player Focus</div>
+            <div class="pi-row"><span class="pi-key">ID</span>       <span class="pi-val" id="pi-id">—</span></div>
+            <div class="pi-row"><span class="pi-key">Type</span>     <span class="pi-val" id="pi-type">—</span></div>
+            <div class="pi-row"><span class="pi-key">Events</span>   <span class="pi-val" id="pi-events">—</span></div>
+            <div class="pi-row"><span class="pi-key">Duration</span> <span class="pi-val" id="pi-duration">—</span></div>
+            <button id="focus-btn">🎯 Focus This Player</button>
+            <button id="clear-btn">✕ Clear Focus</button>
+            <div class="pi-hint">Hover to preview · Click dot to lock · Click map to reset</div>
+        </div>
+    </div>
+</div>
+
+<!-- TIMELINE -->
+<div id="timeline">
+    <button id="play-btn">▶ PLAY</button>
+    <span id="time-display">0.00s</span>
+    <input type="range" id="timeline-slider" min="0" max="100" value="0" step="0.01">
+    <span id="time-end">/ 0.00s</span>
+    <span class="tl-label">SPD</span>
+    <select id="speed-select">
+        <option value="1">1×</option>
+        <option value="2">2×</option>
+        <option value="5">5×</option>
+        <option value="10">10×</option>
+    </select>
+</div>
+
+<div id="status">LILA BLACK  //  PLAYER JOURNEY VIEWER  //  READY</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.heat/0.2.0/leaflet-heat.js"></script>
+<script>
+// ═══════════════════════════════════════════
+// CONFIG
+// ═══════════════════════════════════════════
+const API = "http://127.0.0.1:8000";
+
+const MINIMAP_FILES = {
+    'AmbroseValley': 'AmbroseValley_Minimap.png',
+    'GrandRift':     'GrandRift_Minimap.png',
+    'Lockdown':      'Lockdown_Minimap.jpg'
+};
+
+const EVENT_COLORS = {
+    'Position':      '#4a9eff',
+    'BotPosition':   '#445566',
+    'Kill':          '#ff4444',
+    'Killed':        '#ff8800',
+    'BotKill':       '#ffd600',
+    'BotKilled':     '#cc00ff',
+    'BotKillBot':    '#ff69b4',
+    'KilledByStorm': '#00ccff',
+    'Loot':          '#00e676',
+};
+
+const EVENT_RADIUS = {
+    'Position':3, 'BotPosition':2,
+    'Kill':10, 'Killed':10,
+    'BotKill':8, 'BotKilled':8, 'BotKillBot':7,
+    'KilledByStorm':10, 'Loot':6,
+};
+
+const BASE_OPACITY = { 'Position':0.4, 'BotPosition':0.2 };
+
+const HUMAN_COLORS = ['#00b0ff','#00e676','#ffd600','#ff69b4','#ff6b00','#d500f9','#ff2d55'];
+const BOT_COLOR    = 'rgba(60,90,120,0.4)';
+
+// ═══════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════
+let allEvents     = [];
+let lockedUid     = null;
+let hoveredUid    = null;
+let isPlaying     = false;
+let playInterval  = null;
+let maxTime       = 0;
+let heatLayer     = null;
+let activeHeat    = null;
+let showLines     = false;
+let playerColors  = {};
+
+// Dropdown data
+const DD = {
+    map:    { input:'si-map',    drop:'sd-map',    opts:[], val:null },
+    date:   { input:'si-date',   drop:'sd-date',   opts:[], val:null },
+    match:  { input:'si-match',  drop:'sd-match',  opts:[], val:null },
+    player: { input:'si-player', drop:'sd-player', opts:[], val:null },
+};
+
+// ═══════════════════════════════════════════
+// SEARCHABLE DROPDOWN ENGINE
+// ═══════════════════════════════════════════
+function ddInit(key, opts, placeholder, onSelect) {
+    const d     = DD[key];
+    d.opts      = opts;
+    d.onSelect  = onSelect;
+    const input = document.getElementById(d.input);
+    const drop  = document.getElementById(d.drop);
+
+    input.placeholder = placeholder;
+
+    function render(filter) {
+        const q = (filter||'').toLowerCase().trim();
+        drop.innerHTML = '';
+        const filtered = q
+            ? opts.filter(o => (o.value||o).toLowerCase().includes(q) || (o.label||o).toLowerCase().includes(q))
+            : opts;
+
+        if (!filtered.length) {
+            drop.innerHTML = `<div class="srch-option no-results">No results</div>`;
+            return;
+        }
+        filtered.forEach(o => {
+            const val   = o.value !== undefined ? o.value : o;
+            const label = o.label !== undefined ? o.label : o;
+            const el    = document.createElement('div');
+            el.className = 'srch-option' + (val === d.val ? ' selected' : '');
+            el.textContent = label;
+            el.addEventListener('mousedown', e => {
+                e.preventDefault();
+                e.stopPropagation();
+                d.val        = val;
+                input.value  = label;
+                drop.classList.remove('open');
+                if (d.onSelect) d.onSelect(val);
+            });
+            drop.appendChild(el);
+        });
+    }
+
+    input.addEventListener('focus', () => {
+        // On focus, clear the input so user can type to search fresh
+        if (key === 'match' || key === 'player') {
+            input.dataset.prev = input.value;
+            input.value = '';
+        }
+        render('');
+        drop.classList.add('open');
+    });
+
+    input.addEventListener('input', () => { render(input.value); });
+
+    input.addEventListener('blur', () => {
+        setTimeout(() => {
+            drop.classList.remove('open');
+            // If nothing was newly selected, restore previous display value
+            if ((key === 'match' || key === 'player') && input.value === '' && input.dataset.prev) {
+                input.value = input.dataset.prev;
+            }
+        }, 150);
+    });
+
+    input.addEventListener('keyup', () => render(input.value));
+}
+
+function ddSet(key, opts, placeholder, onSelect) {
+    DD[key].val = null;
+    document.getElementById(DD[key].input).value = '';
+    ddInit(key, opts, placeholder, onSelect);
+}
+
+function ddGetVal(key) { return DD[key].val; }
+
+// ═══════════════════════════════════════════
+// MAP
+// ═══════════════════════════════════════════
+const map = L.map('map', { crs:L.CRS.Simple, minZoom:-3, maxZoom:4, zoomSnap:0.25 });
+let imageOverlay = null;
+const markersLayer = L.layerGroup().addTo(map);
+const linesLayer   = L.layerGroup().addTo(map);
+
+map.on('click', () => {
+    lockedUid  = null;
+    hoveredUid = null;
+    ddSet('player', DD.player.opts, 'All players', onPlayerSelect);
+    hideCard();
+    refreshMarkers();
+});
+
+function loadMinimap(mapId) {
+    if (imageOverlay) map.removeLayer(imageOverlay);
+    const f = MINIMAP_FILES[mapId];
+    if (!f) return;
+    const b = [[0,0],[1024,1024]];
+    imageOverlay = L.imageOverlay(`${API}/minimaps/${f}`, b).addTo(map);
+    map.fitBounds(b, { padding:[8,8] });
+}
+
+// ═══════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════
+function classify(evt) {
+    if (evt.is_bot && (evt.event==='BotKill'||evt.event==='BotKilled')) return 'BotKillBot';
+    return evt.event;
+}
+function isMove(t) { return t==='Position'||t==='BotPosition'; }
+function meaning(ev, isBot) {
+    return ({
+        'Position':      isBot?'Bot moving':'Human moving',
+        'BotPosition':   'Bot moving',
+        'Kill':          'Human killed another human',
+        'Killed':        'Human killed by another human',
+        'BotKill':       'Human killed a bot',
+        'BotKilled':     'Human killed by a bot',
+        'BotKillBot':    'Bot killed by another bot',
+        'KilledByStorm': 'Died to the storm',
+        'Loot':          'Item picked up',
+    })[ev] || ev;
+}
+
+function buildColors(events) {
+    playerColors = {};
+    let hi = 0; const seen = new Set();
+    events.forEach(e => {
+        const uid = String(e.user_id);
+        if (!seen.has(uid)) {
+            seen.add(uid);
+            playerColors[uid] = e.is_bot ? BOT_COLOR : HUMAN_COLORS[hi++ % HUMAN_COLORS.length];
+        }
+    });
+}
+
+// ═══════════════════════════════════════════
+// PATH LINES
+// ═══════════════════════════════════════════
+function renderLines(events) {
+    linesLayer.clearLayers();
+    if (!showLines) return;
+
+    const fid = lockedUid || hoveredUid || null;
+    const byP = {};
+
+    events.filter(e => isMove(classify(e)))
+          .sort((a,b) => a.ts_seconds - b.ts_seconds)
+          .forEach(e => {
+              const uid = String(e.user_id);
+              if (!byP[uid]) byP[uid] = [];
+              byP[uid].push([e.pixel_y, e.pixel_x]);
+          });
+
+    Object.entries(byP).forEach(([uid, coords]) => {
+        if (coords.length < 2) return;
+        const focused  = !fid || uid === fid;
+        const color    = playerColors[uid] || '#666';
+        const opacity  = fid ? (focused ? 0.9 : 0.05) : 0.5;
+
+        const line = L.polyline(coords, {
+            color, weight: focused?2.5:1, opacity, smoothFactor:1.5
+        });
+
+        line.on('click', ev => {
+            L.DomEvent.stopPropagation(ev);
+            lockedUid = uid;
+            showCard(uid, allEvents);
+            refreshMarkers();
+        });
+        linesLayer.addLayer(line);
+
+        // Start ▶ and End ✕ markers
+        if (focused || !fid) {
+            const sz = focused ? 14 : 9;
+            const mk = (pt, icon, title) => L.marker(pt, {
+                icon: L.divIcon({
+                    html:`<div style="color:${color};font-size:${sz}px;opacity:${Math.max(opacity,0.3)};
+                          text-shadow:0 0 8px ${color};transform:translate(-50%,-50%);
+                          pointer-events:none;line-height:1">${icon}</div>`,
+                    className:'', iconSize:[sz,sz], iconAnchor:[sz/2,sz/2]
+                }),
+                interactive:false, title
+            });
+            linesLayer.addLayer(mk(coords[0], '▶', 'Start'));
+            linesLayer.addLayer(mk(coords[coords.length-1], '✕', 'End'));
+        }
+    });
+}
+
+// ═══════════════════════════════════════════
+// RENDER MARKERS
+// ═══════════════════════════════════════════
+function renderEvents(events) {
+    markersLayer.clearLayers();
+    const fid = lockedUid || hoveredUid || null;
+
+    events.forEach(evt => {
+        const type  = classify(evt);
+        const color = EVENT_COLORS[type] || '#fff';
+        const r     = EVENT_RADIUS[type] || 4;
+        const uid   = String(evt.user_id);
+        const mine  = fid && uid === fid;
+
+        let opacity = BASE_OPACITY[type] || 0.9;
+        if (fid) opacity = mine ? (isMove(type)?0.8:1.0) : (isMove(type)?0.04:0.07);
+
+        const c = L.circleMarker([evt.pixel_y, evt.pixel_x], {
+            radius: mine?r+2:r,
+            fillColor: color, color: mine?'#fff':color,
+            fillOpacity: opacity, weight: mine?2:0.5
+        });
+
+        c.bindPopup(`
+            <div style="font-family:'Share Tech Mono',monospace;font-size:12px;min-width:190px;line-height:1.9;color:#c9d1d9;padding:2px">
+                <div style="color:#ff2d55;font-weight:bold;font-size:14px;margin-bottom:4px;font-family:'Rajdhani',sans-serif;letter-spacing:0.05em">${type}</div>
+                <div><span style="color:#5a7a9a">ID     :</span> ${uid.substring(0,18)}${uid.length>18?'…':''}</div>
+                <div><span style="color:#5a7a9a">Type   :</span> ${evt.is_bot?'🤖 Bot':'👤 Human'}</div>
+                <div><span style="color:#5a7a9a">Action :</span> ${meaning(type, evt.is_bot)}</div>
+                <div><span style="color:#5a7a9a">Time   :</span> ${Number(evt.ts_seconds).toFixed(3)}s</div>
+                <div><span style="color:#5a7a9a">Pixel  :</span> (${evt.pixel_x}, ${evt.pixel_y})</div>
+            </div>
+        `);
+
+        c.on('mouseover', () => {
+            if (lockedUid) return;
+            hoveredUid = uid;
+            renderEvents(events); renderLines(events);
+            showCard(uid, events);
+        });
+        c.on('mouseout', () => {
+            if (lockedUid) return;
+            hoveredUid = null;
+            renderEvents(events); renderLines(events);
+            hideCard();
+        });
+        c.on('click', ev => {
+            L.DomEvent.stopPropagation(ev);
+            lockedUid = lockedUid===uid ? null : uid;
+            hoveredUid = null;
+            if (lockedUid) showCard(lockedUid, events);
+            else hideCard();
+            renderEvents(events); renderLines(events);
+        });
+
+        markersLayer.addLayer(c);
+    });
+}
+
+function refreshMarkers() {
+    const t = parseFloat(document.getElementById('timeline-slider').value) || maxTime;
+    const v = allEvents.filter(e => e.ts_seconds <= t);
+    renderEvents(v); renderLines(v);
+}
+
+// ═══════════════════════════════════════════
+// PLAYER CARD
+// ═══════════════════════════════════════════
+function showCard(uid, events) {
+    const evts = (events||allEvents).filter(e => String(e.user_id)===uid);
+    if (!evts.length) return;
+    const dur = evts[evts.length-1].ts_seconds - evts[0].ts_seconds;
+    document.getElementById('pi-id').textContent       = uid.length>16 ? uid.substring(0,14)+'…' : uid;
+    document.getElementById('pi-type').textContent     = evts[0].is_bot ? '🤖 Bot' : '👤 Human';
+    document.getElementById('pi-events').textContent   = evts.length;
+    document.getElementById('pi-duration').textContent = `${dur.toFixed(2)}s`;
+    document.getElementById('player-indicator').classList.add('visible');
+}
+
+function hideCard() {
+    document.getElementById('player-indicator').classList.remove('visible');
+}
+
+// ── FOCUS BUTTON — stops propagation so map click doesn't fire
+document.getElementById('focus-btn').addEventListener('click', ev => {
+    ev.stopPropagation();
+    const uid = lockedUid || hoveredUid;
+    if (!uid) return;
+    lockedUid = uid;
+    // Reset timeline to 0 and start playback for this player
+    stopPlay();
+    const slider = document.getElementById('timeline-slider');
+    slider.value = 0;
+    renderUpTo(0);
+    showCard(uid, allEvents);
+    setStatus(`Focused: ${uid.substring(0,24)}…  ·  Timeline reset to 0`);
+});
+
+// ── CLEAR BUTTON
+document.getElementById('clear-btn').addEventListener('click', ev => {
+    ev.stopPropagation();
+    lockedUid  = null;
+    hoveredUid = null;
+    hideCard();
+    refreshMarkers();
+});
+
+// ═══════════════════════════════════════════
+// MATCH SUMMARY
+// ═══════════════════════════════════════════
+function updateSummary(events, mapId) {
+    const humans   = [...new Set(events.filter(e=>!e.is_bot).map(e=>e.user_id))].length;
+    const bots     = [...new Set(events.filter(e=> e.is_bot).map(e=>e.user_id))].length;
+    const kills    = events.filter(e=>e.event==='Kill').length;
+    const botkills = events.filter(e=>e.event==='BotKill'&&!e.is_bot).length;
+    const storm    = events.filter(e=>e.event==='KilledByStorm').length;
+    const loot     = events.filter(e=>e.event==='Loot').length;
+
+    document.getElementById('sp-map').textContent      = String(mapId);
+    document.getElementById('sp-players').textContent  = humans+bots;
+    document.getElementById('sp-humans').textContent   = humans;
+    document.getElementById('sp-bots').textContent     = bots;
+    document.getElementById('sp-duration').textContent = `${maxTime.toFixed(1)}s`;
+    document.getElementById('sp-events').textContent   = events.length;
+    document.getElementById('sp-kills').textContent    = kills;
+    document.getElementById('sp-botkills').textContent = botkills;
+    document.getElementById('sp-storm').textContent    = storm;
+    document.getElementById('sp-loot').textContent     = loot;
+    document.getElementById('summary-panel').classList.add('visible');
+}
+
+// ═══════════════════════════════════════════
+// HEATMAP — stopPropagation on buttons
+// ═══════════════════════════════════════════
+function buildHeatmap(type) {
+    if (heatLayer) { map.removeLayer(heatLayer); heatLayer = null; }
+
+    document.querySelectorAll('.heat-btn').forEach(b => {
+        b.className = 'heat-btn';
+        if (b.dataset.heat===type && type!=='off') b.classList.add(`active-${type}`);
+    });
+
+    if (type==='off'||type===activeHeat) { activeHeat=null; return; }
+    activeHeat = type;
+
+    let pts = [];
+    if (type==='kills')   pts = allEvents.filter(e=>e.event==='Kill'||(e.event==='BotKill'&&!e.is_bot)).map(e=>[e.pixel_y,e.pixel_x,1]);
+    if (type==='deaths')  pts = allEvents.filter(e=>['Killed','BotKilled','KilledByStorm'].includes(e.event)).map(e=>[e.pixel_y,e.pixel_x,1]);
+    if (type==='traffic') pts = allEvents.filter(e=>isMove(e.event)).map(e=>[e.pixel_y,e.pixel_x,0.4]);
+
+    if (!pts.length) { setStatus(`No ${type} data.`); return; }
+
+    const G = {
+        kills:   {0.1:'#ffff00',0.4:'#ff6600',0.7:'#ff2200',1.0:'#ff0000'},
+        deaths:  {0.1:'#ff88ff',0.4:'#cc00ff',0.7:'#8800ff',1.0:'#ff00ff'},
+        traffic: {0.1:'#00ffff',0.4:'#0088ff',0.7:'#0044cc',1.0:'#00b0ff'},
+    };
+    heatLayer = L.heatLayer(pts, { radius:30, blur:20, maxZoom:4, max:1.0, gradient:G[type], minOpacity:0.35 }).addTo(map);
+    setStatus(`Heatmap: ${type}  ·  ${pts.length} points`);
+}
+
+document.querySelectorAll('.heat-btn').forEach(b => {
+    b.addEventListener('click', ev => { ev.stopPropagation(); buildHeatmap(b.dataset.heat); });
+});
+
+// ═══════════════════════════════════════════
+// PATHS TOGGLE
+// ═══════════════════════════════════════════
+document.getElementById('toggle-lines').addEventListener('click', function() {
+    showLines = !showLines;
+    this.classList.toggle('on', showLines);
+    this.textContent = showLines ? '〰 Paths ON' : '〰 Paths';
+    refreshMarkers();
+});
+
+// ═══════════════════════════════════════════
+// TIMELINE
+// ═══════════════════════════════════════════
+function initTimeline(events) {
+    maxTime = Math.max(...events.map(e=>e.ts_seconds));
+    const s = document.getElementById('timeline-slider');
+    s.min=0; s.max=maxTime; s.value=maxTime; s.step=maxTime/1000;
+    document.getElementById('time-display').textContent = `${maxTime.toFixed(2)}s`;
+    document.getElementById('time-end').textContent     = `/ ${maxTime.toFixed(2)}s`;
+}
+
+function renderUpTo(t) {
+    const v = allEvents.filter(e=>e.ts_seconds<=t);
+    renderEvents(v); renderLines(v);
+    document.getElementById('time-display').textContent = `${Number(t).toFixed(2)}s`;
+}
+
+function stopPlay() {
+    clearInterval(playInterval); playInterval=null; isPlaying=false;
+    document.getElementById('play-btn').textContent = '▶ PLAY';
+}
+
+function startPlay() {
+    const s     = document.getElementById('timeline-slider');
+    const speed = parseFloat(document.getElementById('speed-select').value);
+    if (parseFloat(s.value) >= maxTime) s.value = 0;
+    isPlaying = true;
+    document.getElementById('play-btn').textContent = '⏸ PAUSE';
+    playInterval = setInterval(() => {
+        let cur = parseFloat(s.value) + (maxTime/1000)*speed;
+        if (cur >= maxTime) { cur=maxTime; stopPlay(); }
+        s.value = cur; renderUpTo(cur);
+    }, 50);
+}
+
+// Speed change: restart from 0
+document.getElementById('speed-select').addEventListener('change', () => {
+    stopPlay();
+    document.getElementById('timeline-slider').value = 0;
+    renderUpTo(0);
+    startPlay();
+});
+
+document.getElementById('timeline-slider').addEventListener('input', e => {
+    stopPlay(); renderUpTo(parseFloat(e.target.value));
+});
+document.getElementById('play-btn').addEventListener('click', () => {
+    if (isPlaying) stopPlay(); else startPlay();
+});
+
+// ═══════════════════════════════════════════
+// API
+// ═══════════════════════════════════════════
+function onMapSelect(mapId) {
+    loadMinimap(mapId);
+    onFilterChange();
+}
+
+function onDateSelect() { onFilterChange(); }
+
+async function onFilterChange() {
+    const mapId = ddGetVal('map');
+    const date  = ddGetVal('date');
+    if (!mapId || !date) return;
+    setStatus('Loading matches…');
+    const p = new URLSearchParams({ map_id: mapId });
+    if (date !== 'all') p.append('date', date);
+    const d = await fetch(`${API}/matches?${p}`).then(r=>r.json());
+
+    // Build enriched options sorted by player count (already sorted from backend)
+    const opts = d.matches.map(m => {
+        // Handle both old format (string) and new format (object)
+        if (typeof m === 'string') {
+            return { value: m, label: m };
+        }
+        const mid   = m.match_id;
+        const short = mid.length > 28 ? mid.substring(0, 26) + '..' : mid;
+        const tag   = `👤${m.humans} 🤖${m.bots}`;
+        return {
+            value: mid,
+            label: `${tag}  ${short}`
+        };
+    });
+
+    ddSet('match', opts, `${d.count} matches — search or paste`, null);
+    setStatus(`${d.count} matches  ·  ${mapId} / ${date}`);
+}
+
+function onPlayerSelect(uid) {
+    lockedUid  = uid || null;
+    hoveredUid = null;
+    if (lockedUid) showCard(lockedUid, allEvents);
+    else hideCard();
+    refreshMarkers();
+}
+
+async function loadMatch() {
+    const matchId = ddGetVal('match') || document.getElementById('si-match').value.trim();
+    if (!matchId) { setStatus('⚠ Select or paste a match ID.'); return; }
+
+    stopPlay(); lockedUid=null; hoveredUid=null; hideCard();
+    if (heatLayer) { map.removeLayer(heatLayer); heatLayer=null; }
+    activeHeat = null;
+    document.querySelectorAll('.heat-btn').forEach(b=>b.className='heat-btn');
+    document.getElementById('summary-panel').classList.remove('visible');
+
+    setStatus('Loading…');
+    document.getElementById('load-btn').textContent='…';
+    document.getElementById('load-btn').disabled=true;
+
+    try {
+        const data = await fetch(`${API}/events?match_id=${encodeURIComponent(matchId)}`).then(r=>r.json());
+        if (data.error) { setStatus(`Error: ${data.error}`); return; }
+
+        allEvents = data.events;
+        buildColors(allEvents);
+        initTimeline(allEvents);
+        renderEvents(allEvents);
+        renderLines(allEvents);
+
+        // Populate player dropdown
+        const pm = {};
+        allEvents.forEach(e => {
+            const uid = String(e.user_id);
+            if (!pm[uid]) pm[uid] = { isBot:e.is_bot, count:0 };
+            pm[uid].count++;
+        });
+        const playerOpts = [{ value:'', label:'All players' },
+            ...Object.entries(pm)
+                .sort((a,b)=>a[1].isBot-b[1].isBot||b[1].count-a[1].count)
+                .map(([uid, info]) => ({
+                    value: uid,
+                    label: `${info.isBot?'🤖':'👤'} ${uid.length>20?uid.substring(0,18)+'..':uid} (${info.count})`
+                }))
+        ];
+        ddSet('player', playerOpts, 'All players', onPlayerSelect);
+
+        const mapId  = String(allEvents[0]?.map_id||'—');
+        updateSummary(allEvents, mapId);
+
+        const humans = [...new Set(allEvents.filter(e=>!e.is_bot).map(e=>e.user_id))].length;
+        const bots   = [...new Set(allEvents.filter(e=> e.is_bot).map(e=>e.user_id))].length;
+        setStatus(`${data.total_events} events  ·  ${humans} human${humans!==1?'s':''}  ·  ${bots} bot${bots!==1?'s':''}  ·  ${matchId.substring(0,38)}…`);
+
+    } catch(err) {
+        setStatus('Connection failed — is the backend running?');
+    } finally {
+        document.getElementById('load-btn').textContent='▶ LOAD';
+        document.getElementById('load-btn').disabled=false;
+    }
+}
+
+function setStatus(msg) {
+    document.getElementById('status').textContent = `LILA BLACK  //  ${msg}`;
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+async function init() {
+    const [mapsRes, datesRes] = await Promise.all([
+        fetch(`${API}/maps`).then(r=>r.json()),
+        fetch(`${API}/dates`).then(r=>r.json()),
+    ]);
+
+    ddInit('map',  mapsRes.maps.map(m=>({value:m,label:m})), 'Select map…', onMapSelect);
+    ddInit('date', ['all',...datesRes.dates].map(d=>({value:d,label:d})), 'Select date…', onDateSelect);
+    ddInit('match',  [], 'Search or paste match ID…', null);
+    ddInit('player', [], 'All players', onPlayerSelect);
+
+    document.getElementById('load-btn').addEventListener('click', loadMatch);
+}
+
+init();
+</script>
+</body>
+</html>
