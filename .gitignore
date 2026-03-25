@@ -5,6 +5,6 @@ __pycache__/
 .env
 .idea/
 player_data/
-*.parquet
+!player_data/minimaps/
+!player_data/minimaps/**
 *.nakama-0
-player_data/main.py
