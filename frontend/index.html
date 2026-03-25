@@ -394,6 +394,48 @@
             font-family: 'Share Tech Mono', monospace;
         }
 
+        /* ── SPLASH SCREEN ── */
+        #splash {
+            position: fixed; inset: 0;
+            background: var(--bg-deep);
+            z-index: 99999;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 20px;
+            transition: opacity 0.6s ease;
+        }
+        #splash.hidden { opacity: 0; pointer-events: none; }
+        #splash-logo {
+            font-size: 38px; font-weight: 700;
+            letter-spacing: 0.15em; color: var(--red);
+            text-shadow: 0 0 40px rgba(255,45,85,0.6);
+        }
+        #splash-logo span { color: var(--blue); text-shadow: 0 0 40px rgba(0,176,255,0.6); }
+        #splash-sub {
+            font-size: 12px; color: var(--dim);
+            letter-spacing: 0.22em; text-transform: uppercase;
+            font-family: 'Share Tech Mono', monospace;
+        }
+        #splash-msg {
+            font-size: 11px; color: var(--muted);
+            font-family: 'Share Tech Mono', monospace;
+            letter-spacing: 0.06em;
+        }
+        #splash-bar-wrap {
+            width: 200px; height: 2px;
+            background: var(--border); border-radius: 2px; overflow: hidden;
+        }
+        #splash-bar {
+            height: 100%; width: 35%;
+            background: linear-gradient(90deg, var(--red), var(--blue));
+            border-radius: 2px;
+            animation: splashSlide 1.3s ease-in-out infinite alternate;
+        }
+        @keyframes splashSlide {
+            from { transform: translateX(-100%); }
+            to   { transform: translateX(380%); }
+        }
+
         /* ── LEAFLET POPUP ── */
         .leaflet-popup-content-wrapper {
             background: rgba(8,12,20,0.96) !important;
@@ -412,6 +454,14 @@
     </style>
 </head>
 <body>
+
+<!-- SPLASH SCREEN -->
+<div id="splash">
+    <div id="splash-logo">LILA<span>BLACK</span></div>
+    <div id="splash-sub">Player Journey Viewer</div>
+    <div id="splash-bar-wrap"><div id="splash-bar"></div></div>
+    <div id="splash-msg">Connecting to server…</div>
+</div>
 
 <!-- TOP BAR -->
 <div id="topbar">
@@ -537,7 +587,7 @@
 // ═══════════════════════════════════════════
 // CONFIG
 // ═══════════════════════════════════════════
-const API = "https://lila-black-backend.onrender.com";
+const API = "http://127.0.0.1:8000";
 
 const MINIMAP_FILES = {
     'AmbroseValley': 'AmbroseValley_Minimap.png',
@@ -682,11 +732,23 @@ map.on('click', () => {
 });
 
 function loadMinimap(mapId) {
+    // Clear all markers and lines immediately when map changes
+    markersLayer.clearLayers();
+    linesLayer.clearLayers();
+    allEvents = [];
+    document.getElementById('summary-panel').classList.remove('visible');
+    hideCard();
+    stopPlay();
+
     if (imageOverlay) map.removeLayer(imageOverlay);
     const f = MINIMAP_FILES[mapId];
     if (!f) return;
     const b = [[0,0],[1024,1024]];
     imageOverlay = L.imageOverlay(`${API}/minimaps/${f}`, b).addTo(map);
+    // Wait for image to fully load before fitting bounds
+    imageOverlay.on('load', () => {
+        map.fitBounds(b, { padding:[8,8] });
+    });
     map.fitBounds(b, { padding:[8,8] });
 }
 
@@ -1110,20 +1172,46 @@ function setStatus(msg) {
 }
 
 // ═══════════════════════════════════════════
-// INIT
+// INIT WITH SPLASH
 // ═══════════════════════════════════════════
 async function init() {
+    const splash    = document.getElementById('splash');
+    const splashMsg = document.getElementById('splash-msg');
+
+    // Poll backend until it responds (handles Render cold start)
+    let ready = false;
+    let attempts = 0;
+    while (!ready) {
+        try {
+            splashMsg.textContent = attempts === 0
+                ? 'Connecting to server…'
+                : `Waking up server… (${attempts * 5}s)`;
+            const res = await fetch(`${API}/maps`, { signal: AbortSignal.timeout(8000) });
+            if (res.ok) ready = true;
+        } catch(e) {
+            attempts++;
+            await new Promise(r => setTimeout(r, 3000));
+        }
+    }
+
+    splashMsg.textContent = 'Loading data…';
+
+    // Now load everything
     const [mapsRes, datesRes] = await Promise.all([
         fetch(`${API}/maps`).then(r=>r.json()),
         fetch(`${API}/dates`).then(r=>r.json()),
     ]);
 
-    ddInit('map',  mapsRes.maps.map(m=>({value:m,label:m})), 'Select map…', onMapSelect);
-    ddInit('date', ['all',...datesRes.dates].map(d=>({value:d,label:d})), 'Select date…', onDateSelect);
+    ddInit('map',    mapsRes.maps.map(m=>({value:m,label:m})),           'Select map…',            onMapSelect);
+    ddInit('date',   ['all',...datesRes.dates].map(d=>({value:d,label:d})), 'Select date…',        onDateSelect);
     ddInit('match',  [], 'Search or paste match ID…', null);
     ddInit('player', [], 'All players', onPlayerSelect);
 
     document.getElementById('load-btn').addEventListener('click', loadMatch);
+
+    // Hide splash
+    splash.classList.add('hidden');
+    setTimeout(() => { splash.style.display = 'none'; }, 650);
 }
 
 init();
