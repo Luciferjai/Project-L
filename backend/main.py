@@ -20,7 +20,7 @@ import os
 import pandas as pd
 import pyarrow.parquet as pq
 
-DATA_PATH = r"E:\Project L\player_data"
+DATA_PATH = os.getenv("DATA_PATH", r"E:\Project L\player_data")
 
 def world_to_pixel(x, z, map_id):
     configs = {
